@@ -1,0 +1,16 @@
+attr                  lib32-attr
+fontconfig            lib32-fontconfig
+lcms2                 lib32-lcms2
+libxml2               lib32-libxml2
+libxcursor            lib32-libxcursor
+libxrandr             lib32-libxrandr
+libxdamage            lib32-libxdamage
+libxi                 lib32-libxi
+gettext               lib32-gettext
+freetype2             lib32-freetype2
+glu                   lib32-glu
+libsm                 lib32-libsm
+gcc-libs              lib32-gcc-libs
+libpcap               lib32-libpcap
+faudio                lib32-faudio
+desktop-file-utils
