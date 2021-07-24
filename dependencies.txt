@@ -14,3 +14,34 @@ gcc-libs              lib32-gcc-libs
 libpcap               lib32-libpcap
 faudio                lib32-faudio
 desktop-file-utils
+
+autoconf bison perl fontforge flex mingw-w64-gcc
+giflib                lib32-giflib
+libpng                lib32-libpng
+gnutls                lib32-gnutls
+libxinerama           lib32-libxinerama
+libxcomposite         lib32-libxcomposite
+libxmu                lib32-libxmu
+libxxf86vm            lib32-libxxf86vm
+libldap               lib32-libldap
+mpg123                lib32-mpg123
+openal                lib32-openal
+v4l-utils             lib32-v4l-utils
+alsa-lib              lib32-alsa-lib
+libxcomposite         lib32-libxcomposite
+opencl-icd-loader     lib32-opencl-icd-loader
+libxslt               lib32-libxslt
+libpulse              lib32-libpulse
+libva                 lib32-libva
+gtk3                  lib32-gtk3
+gst-plugins-base-libs lib32-gst-plugins-base-libs
+vulkan-icd-loader     lib32-vulkan-icd-loader
+sdl2                  lib32-sdl2
+vkd3d                 lib32-vkd3d
+libcups               lib32-libcups
+sane
+libgphoto2
+gsm
+ffmpeg
+samba
+opencl-headers
