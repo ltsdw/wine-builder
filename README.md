@@ -1,4 +1,4 @@
-#wine-builder
+# wine-builder
 
 a simple script to apply [staging patches](https://github.com/wine-staging/wine-staging) and some patches that I got from [wine-tkg](https://github.com/Frogging-Family/wine-tkg-git) at top of wine and build it.
 
