@@ -1,3 +1,24 @@
+# wine-builder
+
+a simple script to apply [staging patches](https://github.com/wine-staging/wine-staging) and some patches that I got from [wine-tkg](https://github.com/Frogging-Family/wine-tkg-git) at top of wine and build it.
+
+# usage
+
+```
+git clone https://github.com/ltsdw/wine-builder
+cd wine-builder
+```
+
+install the dependencies inside of [dependencies.txt](https://github.com/ltsdw/wine-builder/blob/main/dependencies.txt)
+
+```
+./wine-builder install
+```
+
+the package will be put inside ___pkg/wine-ltsdw-VERSION___ directory, you can copy to anywhere you want to (it's meant to be installed locally not system-wide).
+
+# environment variables
+
 | environment variables | description |
 | :-------------------- | :---------- |
 | <tt>WINEESYNC</tt>                 | 1 to enable esync, +esync to debug
