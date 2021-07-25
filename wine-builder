@@ -9,7 +9,7 @@ staging_pkg="wine-staging-$_pkgver"
 _basedir=$PWD
 _srcdir="$_basedir/src"
 _march="native" #name of the target architecture
-_pkgdir="$_basedir/pkg/$wine_pkg-ltsdw"
+_pkgdir="$_basedir/pkg/wine-ltsdw-$_pkgver"
 
 
 _w32AppFont()
