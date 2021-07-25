@@ -37,7 +37,7 @@ _installWinetricks()
     curl -L "https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks" -o \
         "$_basedir/pkg/$wine_pkg-ltsdw/usr/bin/winetricks" -#
 
-    chmod 755 "$_basedir/pkg/$wine_pkg-ltsdw/usr/bin/winetricks"
+    chmod 755 "$_basedir/pkg/wine-ltsdw-$_pkgver/usr/bin/winetricks"
 }
 
 _init()
