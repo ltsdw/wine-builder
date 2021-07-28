@@ -3,13 +3,14 @@
 
 _base=6
 _minor=13
+_release=1
 _pkgver="$_base.$_minor"
 wine_pkg="wine-$_pkgver"
 staging_pkg="wine-staging-$_pkgver"
 _basedir=$PWD
 _srcdir="$_basedir/src"
 _march="native" #name of the target architecture
-_pkgdir="$_basedir/pkg/wine-ltsdw-$_pkgver"
+_pkgdir="$_basedir/pkg/wine-ltsdw-$_pkgver.$_release"
 
 
 _w32AppFont()
@@ -35,9 +36,9 @@ _installWinetricks()
 {
     # download winetricks and put inside wine package
     curl -L "https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks" -o \
-        "$_basedir/pkg/$wine_pkg-ltsdw/usr/bin/winetricks" -#
+        "$_pkgdir/usr/bin/winetricks" -#
 
-    chmod 755 "$_basedir/pkg/wine-ltsdw-$_pkgver/usr/bin/winetricks"
+    chmod 755 "$_pkgdir/usr/bin/winetricks"
 }
 
 _init()
@@ -97,7 +98,7 @@ _prepare()
     for patch in $_basedir/patches/staging/*; do
         if [ -f $patch ]; then
             echo "applying $patch"
-            patch -d "$_srcdir/$staging_pkg" -p1 -i $patch
+            patch -N -d "$_srcdir/$staging_pkg" -p1 -i $patch
         fi
     done
 
@@ -108,7 +109,7 @@ _prepare()
     for patch in $_basedir/patches/*; do
         if [ -f $patch ]; then
             echo "applying $patch"
-            patch -d "$_srcdir/$wine_pkg" -p1 -i $patch
+            patch -N -d "$_srcdir/$wine_pkg" -p1 -i $patch
         fi
     done
 
@@ -116,7 +117,8 @@ _prepare()
 
     #use generic processor architecture if not specified 
     if ! [ -z $_march ]; then
-        export CFLAGS="-march=$_march -O2 -pipe"
+        export CFLAGS="-march=$_march -Ofast -fno-lto -falign-functions=32 -fno-math-errno -fno-semantic-interposition -fno-trapping-math"
+        export CXXFLAGS="-march=$_march -Ofast -fno-flto -falign-functions=32 -fno-math-errno -fno-semantic-interposition -fno-trapping-math"
     else
         export CFLAGS="-march=x86-64 -mtune=generic -O2 -pipe"
     fi
@@ -161,20 +163,19 @@ _package()
         libdir="$_pkgdir/usr/lib" \
         dlldir="$_pkgdir/usr/lib/wine" install
 
-    _downloadWinetricks
-
     echo "removing unneeded symbols, drasticaly reducing the size"
-    i686-w64-mingw32-strip --strip-unneeded "$_pkgdir/usr/lib32/wine/i386-windows/*.dll"
-    x86_64-w64-mingw32-strip --strip-unneeded "$_pkgdir/usr/lib/wine/x86_64-windows/*.dll"
+    i686-w64-mingw32-strip --strip-unneeded "$_pkgdir/usr/lib32/wine/i386-windows/"*.dll
+    x86_64-w64-mingw32-strip --strip-unneeded "$_pkgdir/usr/lib/wine/x86_64-windows/"*.dll
 
 }
 
 case "$1" in
     install )
-        _srcClean
-        _init
-        _prepare
-        _package
+        _srcClean && \
+        _init && \
+        _prepare && \
+        _package && \
+        _installWinetricks && \
         _w32AppFont;;
     *       )
         exit 1
