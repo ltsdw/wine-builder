@@ -12,6 +12,14 @@ _srcdir="$_basedir/src"
 _march="native" #name of the target architecture
 _pkgdir="$_basedir/pkg/wine-ltsdw-$_pkgver.$_release"
 
+###################
+#dxvk
+###################
+_dxvk_base=1
+_dxvk_minor=9
+_dxvk_release=1
+_dxvk_ver="$_dxvk_base.$_dxvk_minor.$_dxvk_release"
+###################
 
 _w32AppFont()
 {
@@ -39,6 +47,28 @@ _installWinetricks()
         "$_pkgdir/usr/bin/winetricks" -#
 
     chmod 755 "$_pkgdir/usr/bin/winetricks"
+}
+
+_installDXVK()
+{
+    # remove old files if exists 
+    _dxvk_dir="$_srcdir/dxvk/dxvk-$_dxvk_ver"
+    rm -rf "$_dxvk_dir"
+
+    # download the specified version of dxvk
+    curl -L "https://github.com/doitsujin/dxvk/releases/download/v$_dxvk_ver/dxvk-$_dxvk_ver.tar.gz" -o "$_basedir/dxvk.tar.gz" -#
+    mkdir -p "$_srcdir/dxvk"
+    tar xvf "$_basedir/dxvk.tar.gz" -C "$_srcdir/dxvk"
+
+    # install the files to the specific architectures and make some pathing adjustment
+    rm -rf "$_pkgdir/usr/lib/dxvk/x64"
+    rm -rf "$_pkgdir/usr/lib32/dxvk/x32"
+    install -D -m644 "$_dxvk_dir/x32/"*.dll -t "$_pkgdir/usr/lib32/dxvk/x32"
+    install -D -m644 "$_dxvk_dir/x64/"*.dll -t "$_pkgdir/usr/lib/dxvk/x64"
+
+    sed -i 's/dxvk_lib32=${dxvk_lib32:-"x32"}/dxvk_lib32=${dxvk_lib32:-"..\/lib32\/dxvk\/x32"}/' "$_dxvk_dir/setup_dxvk.sh"
+    sed -i 's/dxvk_lib64=${dxvk_lib64:-"x64"}/dxvk_lib64=${dxvk_lib64:-"..\/lib\/dxvk\/x64"}/' "$_dxvk_dir/setup_dxvk.sh"
+    install -m755 "$_srcdir/dxvk/dxvk-$_dxvk_ver/setup_dxvk.sh" -t "$_pkgdir/usr/bin/"
 }
 
 _init()
@@ -169,13 +199,16 @@ _package()
 
 }
 
+$@
+
 case "$1" in
     install )
-        _srcClean && \
-        _init && \
-        _prepare && \
-        _package && \
-        _installWinetricks && \
+        _srcClean           && \
+        _init               && \
+        _prepare            && \
+        _package            && \
+        _installWinetricks  && \
+        _installDXVK        && \
         _w32AppFont;;
     *       )
         exit 1
