@@ -196,10 +196,7 @@ _package()
     echo "removing unneeded symbols, drasticaly reducing the size"
     i686-w64-mingw32-strip --strip-unneeded "$_pkgdir/usr/lib32/wine/i386-windows/"*.dll
     x86_64-w64-mingw32-strip --strip-unneeded "$_pkgdir/usr/lib/wine/x86_64-windows/"*.dll
-
 }
-
-$@
 
 case "$1" in
     install )
