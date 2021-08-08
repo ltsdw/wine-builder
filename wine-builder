@@ -2,7 +2,7 @@
 
 
 _base=6
-_minor=13
+_minor=14
 _release=1
 _pkgver="$_base.$_minor"
 wine_pkg="wine-$_pkgver"
@@ -98,10 +98,9 @@ _init()
 _srcClean()
 {
     #delete all files and directory inside source directory
-    rm -rf "$_srcdir/$wine_pkg"
-    rm -rf "$_srcdir/$staging_pkg"
-    rm -rf "$_srcdir/$wine_pkg-32-build"
-    rm -rf "$_srcdir/$wine_pkg-64-build"
+    echo "Cleaning src directory"
+    rm -rf "$_srcdir/wine-"*
+    rm -rf "$_srcdir/dxvk"
 }
 
 _autoConf()
@@ -128,7 +127,7 @@ _prepare()
     for patch in $_basedir/patches/staging/*; do
         if [ -f $patch ]; then
             echo "applying $patch"
-            patch -N -d "$_srcdir/$staging_pkg" -p1 -i $patch
+            patch -d "$_srcdir/$staging_pkg" -p1 -i $patch
         fi
     done
 
@@ -139,7 +138,7 @@ _prepare()
     for patch in $_basedir/patches/*; do
         if [ -f $patch ]; then
             echo "applying $patch"
-            patch -N -d "$_srcdir/$wine_pkg" -p1 -i $patch
+            patch -d "$_srcdir/$wine_pkg" -p1 -i $patch
         fi
     done
 
@@ -150,7 +149,8 @@ _prepare()
         export CFLAGS="-march=$_march -Ofast -fno-lto -falign-functions=32 -fno-math-errno -fno-semantic-interposition -fno-trapping-math"
         export CXXFLAGS="-march=$_march -Ofast -fno-flto -falign-functions=32 -fno-math-errno -fno-semantic-interposition -fno-trapping-math"
     else
-        export CFLAGS="-march=x86-64 -mtune=generic -O2 -pipe"
+        export CFLAGS="-march=x86-64 -mtune=generic -O2"
+        export CXXFLAGS="-march=x86-64 -mtune=generic -O2"
     fi
 
     export LDFLAGS="-Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now"
