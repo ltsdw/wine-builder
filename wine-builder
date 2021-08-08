@@ -1,26 +1,40 @@
 #! /bin/sh
 
 
+
+########################################################################
+
 _base=6
 _minor=14
 _release=1
 _pkgver="$_base.$_minor"
 wine_pkg="wine-$_pkgver"
 staging_pkg="wine-staging-$_pkgver"
-_basedir=$PWD
+_basedir=$(dirname "$(readlink -f "$0")")
 _srcdir="$_basedir/src"
 _march="native" #name of the target architecture
 _pkgdir="$_basedir/pkg/wine-ltsdw-$_pkgver.$_release"
 
-###################
+########################################################################
 #dxvk
-###################
+########################################################################
 _dxvk_base=1
 _dxvk_minor=9
 _dxvk_release=1
 _dxvk_ver="$_dxvk_base.$_dxvk_minor.$_dxvk_release"
-###################
+########################################################################
 
+
+########################################################################
+#gallium nine
+########################################################################
+_nine_base=0
+_nine_minor=8
+_nine_ver="$_nine_base.$_nine_minor"
+########################################################################
+
+
+########################################################################
 _w32AppFont()
 {
     #font aliasing settings for Win32 applications
@@ -51,8 +65,9 @@ _installWinetricks()
 
 _installDXVK()
 {
-    # remove old files if exists 
     _dxvk_dir="$_srcdir/dxvk/dxvk-$_dxvk_ver"
+
+    # remove old files if exists 
     rm -rf "$_dxvk_dir"
 
     # download the specified version of dxvk
@@ -71,12 +86,41 @@ _installDXVK()
     install -m755 "$_srcdir/dxvk/dxvk-$_dxvk_ver/setup_dxvk.sh" -t "$_pkgdir/usr/bin/"
 }
 
+_installNine()
+{
+    _nine_dir="$_srcdir/gallium-nine/gallium-nine-standalone"
+
+    # remove old files if exists 
+    rm -rf "$_nine_dir"
+
+    nine="gallium-nine-standalone.tar.gz"
+
+    # download the specified version of gallium-nine-standalone
+    curl -L "https://github.com/iXit/wine-nine-standalone/releases/download/v$_nine_ver/gallium-nine-standalone-v$_nine_ver.tar.gz" \
+        -o "$_basedir/$nine" -#
+    mkdir -p "$_srcdir/gallium-nine"
+    tar xvf "$_basedir/$nine" -C "$_srcdir/gallium-nine"
+
+    # install the files to the specific architectures and make some pathing adjustment
+    install -D -m644 "$_nine_dir/bin32/ninewinecfg.exe.so" -t "$_pkgdir/usr/lib32/nine/x32"
+    install -D -m644 "$_nine_dir/bin64/ninewinecfg.exe.so" -t "$_pkgdir/usr/lib/nine/x64"
+    install -D -m644 "$_nine_dir/lib32/d3d9-nine.dll.so" -t "$_pkgdir/usr/lib32/nine/x32"
+    install -D -m644 "$_nine_dir/lib64/d3d9-nine.dll.so" -t "$_pkgdir/usr/lib/nine/x64"
+
+    sed -i 's/$BASE\/bin32/$BASE\/..\/lib32\/nine\/x32/g' "$_nine_dir/nine-install.sh"
+    sed -i 's/$BASE\/bin64/$BASE\/..\/lib\/nine\/x64/g' "$_nine_dir/nine-install.sh"
+    sed -i 's/$BASE\/lib32/$BASE\/..\/lib32\/nine\/x32/g' "$_nine_dir/nine-install.sh"
+    sed -i 's/$BASE\/lib64/$BASE\/..\/lib\/nine\/x64/g' "$_nine_dir/nine-install.sh"
+
+    install -m755 "$_nine_dir/nine-install.sh" -t "$_pkgdir/usr/bin"
+}
+
 _init()
 {
     mkdir -p $_srcdir #create source directory if not exist
 
-    t_winepkg="$wine_pkg.tar.xz"
-    t_stagingpkg="wine-staging-v$_pkgver.tar.gz"
+    t_winepkg="wine.tar.xz"
+    t_stagingpkg="wine-staging.tar.gz"
     curl_wine="curl -L https://dl.winehq.org/wine/source/$_base.x/wine-$_pkgver.tar.xz -o $t_winepkg -#"
     curl_staging="curl -L https://github.com/wine-staging/wine-staging/archive/v$_pkgver/wine-staging-v$_pkgver.tar.gz -o $t_stagingpkg -#"
 
@@ -206,6 +250,7 @@ case "$1" in
         _package            && \
         _installWinetricks  && \
         _installDXVK        && \
+        _installNine        && \
         _w32AppFont;;
     *       )
         exit 1
