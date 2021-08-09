@@ -40,8 +40,7 @@ _w32AppFont()
     #font aliasing settings for Win32 applications
     if ! [ -z $XDG_CONFIG_HOME ]; then
         font_dir_path="$XDG_CONFIG_HOME/fontconfig/conf.d"
-        install -d "$font_dir_path"
-        install -m644 "$_basedir/font/30-win32-aliases.conf" "$font_dir_path"
+        install -D -m644 "$_basedir/font/30-win32-aliases.conf" -t "$font_dir_path"
     fi
 }
 
@@ -65,15 +64,12 @@ _installWinetricks()
 
 _installDXVK()
 {
-    _dxvk_dir="$_srcdir/dxvk/dxvk-$_dxvk_ver"
-
-    # remove old files if exists 
-    rm -rf "$_dxvk_dir"
-
     # download the specified version of dxvk
     curl -L "https://github.com/doitsujin/dxvk/releases/download/v$_dxvk_ver/dxvk-$_dxvk_ver.tar.gz" -o "$_basedir/dxvk.tar.gz" -#
     mkdir -p "$_srcdir/dxvk"
     tar xvf "$_basedir/dxvk.tar.gz" -C "$_srcdir/dxvk"
+
+    _dxvk_dir="$_srcdir/dxvk/dxvk-$_dxvk_ver"
 
     # install the files to the specific architectures and make some pathing adjustment
     rm -rf "$_pkgdir/usr/lib/dxvk/x64"
@@ -88,11 +84,6 @@ _installDXVK()
 
 _installNine()
 {
-    _nine_dir="$_srcdir/gallium-nine/gallium-nine-standalone"
-
-    # remove old files if exists 
-    rm -rf "$_nine_dir"
-
     nine="gallium-nine-standalone.tar.gz"
 
     # download the specified version of gallium-nine-standalone
@@ -100,6 +91,8 @@ _installNine()
         -o "$_basedir/$nine" -#
     mkdir -p "$_srcdir/gallium-nine"
     tar xvf "$_basedir/$nine" -C "$_srcdir/gallium-nine"
+
+    _nine_dir="$_srcdir/gallium-nine/gallium-nine-standalone"
 
     # install the files to the specific architectures and make some pathing adjustment
     install -D -m644 "$_nine_dir/bin32/ninewinecfg.exe.so" -t "$_pkgdir/usr/lib32/nine/x32"
@@ -141,10 +134,11 @@ _init()
 
 _srcClean()
 {
-    #delete all files and directory inside source directory
+    #delete old files and directory inside source directory
     echo "Cleaning src directory"
     rm -rf "$_srcdir/wine-"*
     rm -rf "$_srcdir/dxvk"
+    rm -rf "$_srcdir/gallium-nine"
 }
 
 _autoConf()
@@ -242,16 +236,20 @@ _package()
     x86_64-w64-mingw32-strip --strip-unneeded "$_pkgdir/usr/lib/wine/x86_64-windows/"*.dll
 }
 
-case "$1" in
-    install )
-        _srcClean           && \
-        _init               && \
-        _prepare            && \
-        _package            && \
-        _installWinetricks  && \
-        _installDXVK        && \
-        _installNine        && \
-        _w32AppFont;;
-    *       )
-        exit 1
-esac
+
+_w32AppFont
+
+#case "$1" in
+#    install )
+#        _srcClean           && \
+#        _init               && \
+#        _prepare            && \
+#        _package            && \
+#        _installWinetricks  && \
+#        _installDXVK        && \
+#        _installNine        && \
+#        _w32AppFont         && \
+#        exit 0;;
+#    *       )
+#        exit 1
+#esac
