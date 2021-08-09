@@ -231,25 +231,24 @@ _package()
         libdir="$_pkgdir/usr/lib" \
         dlldir="$_pkgdir/usr/lib/wine" install
 
-    echo "removing unneeded symbols, drasticaly reducing the size"
+    echo "removing unneeded symbols, drastically reducing the size"
     i686-w64-mingw32-strip --strip-unneeded "$_pkgdir/usr/lib32/wine/i386-windows/"*.dll
     x86_64-w64-mingw32-strip --strip-unneeded "$_pkgdir/usr/lib/wine/x86_64-windows/"*.dll
 }
 
+########################################################################
 
-_w32AppFont
-
-#case "$1" in
-#    install )
-#        _srcClean           && \
-#        _init               && \
-#        _prepare            && \
-#        _package            && \
-#        _installWinetricks  && \
-#        _installDXVK        && \
-#        _installNine        && \
-#        _w32AppFont         && \
-#        exit 0;;
-#    *       )
-#        exit 1
-#esac
+case "$1" in
+    install )
+        _srcClean           && \
+        _init               && \
+        _prepare            && \
+        _package            && \
+        _installWinetricks  && \
+        _installDXVK        && \
+        _installNine        && \
+        _w32AppFont         && \
+        exit 0;;
+    *       )
+        exit 1
+esac
