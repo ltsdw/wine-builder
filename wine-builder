@@ -5,7 +5,7 @@
 ########################################################################
 
 _base=6
-_minor=14
+_minor=18
 _release=1
 _pkgver="$_base.$_minor"
 wine_pkg="wine-$_pkgver"
@@ -20,7 +20,7 @@ _pkgdir="$_basedir/pkg/wine-ltsdw-$_pkgver.$_release"
 ########################################################################
 _dxvk_base=1
 _dxvk_minor=9
-_dxvk_release=1
+_dxvk_release=2
 _dxvk_ver="$_dxvk_base.$_dxvk_minor.$_dxvk_release"
 ########################################################################
 
@@ -239,7 +239,7 @@ _package()
 ########################################################################
 
 case "$1" in
-    install )
+    "--install" )
         _srcClean           && \
         _init               && \
         _prepare            && \
