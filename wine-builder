@@ -163,15 +163,13 @@ _prepare()
     mkdir -p $wine_pkg-32-build
     mkdir -p $wine_pkg-64-build
 
-    patch -d "$_srcdir/$staging_pkg" -Np1 -i patches/staging/CSMT-toggle.patch
+    patch -d "$_srcdir/$staging_pkg" -Np1 -i $_basedir/patches/staging/CSMT-toggle.patch
 
     #staging patches
     "$_srcdir/$staging_pkg/patches/patchinstall.sh" DESTDIR="$_srcdir/$wine_pkg" --all \
         -W winex11-_NET_ACTIVE_WINDOW   \
         -W winex11-WM_WINDOWPOSCHANGING \
         -W imm32-com-initialization
-
-    patch -d "$_srcdir/$staging_pkg" -Np1 -i patches/staging/imm32-com-initialization_no_net_active_window.patch
 
     #patches to apply to wine
     for patch in $_basedir/patches/*; do
