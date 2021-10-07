@@ -6,7 +6,7 @@
 
 _base=6
 _minor=18
-_release=1
+_release=2
 _pkgver="$_base.$_minor"
 wine_pkg="wine-$_pkgver"
 staging_pkg="wine-staging-$_pkgver"
