@@ -145,7 +145,8 @@ _autoConf()
 {
     #build the server/trace.c and server/request.h files from the contents of server/protocol.def. 
     cd "$_srcdir/$wine_pkg"
-    tools/make_requests
+    ./dlls/winevulkan/make_vulkan
+    ./tools/make_requests
     autoreconf -f
     cd "$_basedir"
 }
@@ -155,28 +156,28 @@ _prepare()
     cd $_srcdir
 
     #clean early build
+    rm -rf $_pkgdir
     rm -rf $wine_pkg-32-build
     rm -rf $wine_pkg-64-build
 
     mkdir -p $wine_pkg-32-build
     mkdir -p $wine_pkg-64-build
 
-    #patches to aply to wine-staging
-    for patch in $_basedir/patches/staging/*; do
-        if [ -f $patch ]; then
-            echo "applying $patch"
-            patch -d "$_srcdir/$staging_pkg" -p1 -i $patch
-        fi
-    done
+    patch -d "$_srcdir/$staging_pkg" -Np1 -i patches/staging/CSMT-toggle.patch
 
     #staging patches
-    "$_srcdir/$staging_pkg/patches/patchinstall.sh" DESTDIR="$_srcdir/$wine_pkg" --all --force-autoconf
+    "$_srcdir/$staging_pkg/patches/patchinstall.sh" DESTDIR="$_srcdir/$wine_pkg" --all \
+        -W winex11-_NET_ACTIVE_WINDOW   \
+        -W winex11-WM_WINDOWPOSCHANGING \
+        -W imm32-com-initialization
+
+    patch -d "$_srcdir/$staging_pkg" -Np1 -i patches/staging/imm32-com-initialization_no_net_active_window.patch
 
     #patches to apply to wine
     for patch in $_basedir/patches/*; do
         if [ -f $patch ]; then
             echo "applying $patch"
-            patch -d "$_srcdir/$wine_pkg" -p1 -i $patch
+            patch -d "$_srcdir/$wine_pkg" -Np1 -i $patch
         fi
     done
 
