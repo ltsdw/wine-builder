@@ -12,7 +12,7 @@ cd wine-builder
 install the dependencies inside of [dependencies.txt](https://github.com/ltsdw/wine-builder/blob/main/dependencies.txt)
 
 ```
-./wine-builder install
+./wine-builder --build
 ```
 
 the package will be put inside ___pkg/wine-ltsdw-VERSION___ directory, you can copy to anywhere you want to (it's meant to be installed locally not system-wide).
