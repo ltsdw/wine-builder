@@ -5,8 +5,8 @@
 ########################################################################
 
 _base=6
-_minor=18
-_release=2
+_minor=20
+_release=1
 _pkgver="$_base.$_minor"
 wine_pkg="wine-$_pkgver"
 staging_pkg="wine-staging-$_pkgver"
@@ -112,8 +112,8 @@ _init()
 {
     mkdir -p $_srcdir #create source directory if not exist
 
-    t_winepkg="wine.tar.xz"
-    t_stagingpkg="wine-staging.tar.gz"
+    t_winepkg="$wine_pkg.tar.xz"
+    t_stagingpkg="$staging_pkg.tar.gz"
     curl_wine="curl -L https://dl.winehq.org/wine/source/$_base.x/wine-$_pkgver.tar.xz -o $t_winepkg -#"
     curl_staging="curl -L https://github.com/wine-staging/wine-staging/archive/v$_pkgver/wine-staging-v$_pkgver.tar.gz -o $t_stagingpkg -#"
 
@@ -163,19 +163,39 @@ _prepare()
     mkdir -p $wine_pkg-32-build
     mkdir -p $wine_pkg-64-build
 
-    patch -d "$_srcdir/$staging_pkg" -Np1 -i $_basedir/patches/staging/CSMT-toggle.patch
+    patch -d "$_srcdir/$staging_pkg" -Np1 -i "$_basedir/patches/staging/CSMT-toggle.patch"
 
     #staging patches
     "$_srcdir/$staging_pkg/patches/patchinstall.sh" DESTDIR="$_srcdir/$wine_pkg" --all \
-        -W winex11-_NET_ACTIVE_WINDOW   \
+        -W winex11-_NET_ACTIVE_WINDOW \
         -W winex11-WM_WINDOWPOSCHANGING \
-        -W imm32-com-initialization
+        -W ntdll-NtAlertThreadByThreadId
+
+    cd "$_srcdir/$wine_pkg"
+
+    # colors
+    color_1="\033[0;31m"
+    no_color="\033[0m"
 
     #patches to apply to wine
-    for patch in $_basedir/patches/*; do
+    for patch in $_basedir/patches/misc/*; do
         if [ -f $patch ]; then
-            echo "applying $patch"
-            patch -d "$_srcdir/$wine_pkg" -Np1 -i $patch
+            echo -e "${color_1}applying $patch${no_color}"
+            patch -Np1 -i $patch
+        fi
+    done
+
+    for patch in $_basedir/patches/proton/*; do
+        if [ -f $patch ]; then
+            echo -e "${color_1}applying $patch${no_color}"
+            patch -Np1 -i $patch
+        fi
+    done
+
+    for patch in $_basedir/patches/wine-lol/*; do
+        if [ -f $patch ]; then
+            echo -e "${color_1}applying $patch${no_color}"
+            patch -Np1 -i $patch
         fi
     done
 
@@ -235,19 +255,28 @@ _package()
     x86_64-w64-mingw32-strip --strip-unneeded "$_pkgdir/usr/lib/wine/x86_64-windows/"*.dll
 }
 
+_build()
+{
+    _srcClean           && \
+    _init               && \
+    _prepare            && \
+    _package            && \
+    _installWinetricks  && \
+    _installDXVK        && \
+    _installNine        && \
+    _w32AppFont
+}
+
 ########################################################################
 
 case "$1" in
-    "--install" )
-        _srcClean           && \
-        _init               && \
-        _prepare            && \
-        _package            && \
-        _installWinetricks  && \
-        _installDXVK        && \
-        _installNine        && \
-        _w32AppFont         && \
+    "--build" )
+        _build
         exit 0;;
-    *       )
+    ""        )
+        _build
+        exit 0;;
+    *         )
+        echo "--install"
         exit 1
 esac
