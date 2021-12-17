@@ -1,0 +1,325 @@
+diff -ruB a/dlls/ntdll/unix/signal_i386.c b/dlls/ntdll/unix/signal_i386.c
+--- a/dlls/ntdll/unix/signal_i386.c	2021-12-16 18:13:13.138100438 -0300
++++ b/dlls/ntdll/unix/signal_i386.c	2021-12-16 18:25:41.438730574 -0300
+@@ -386,6 +386,8 @@
+ 
+ static ULONG first_ldt_entry = 32;
+ 
++static int wine_cs;
++
+ enum i386_trap_code
+ {
+ #if defined(__FreeBSD__) || defined (__FreeBSD_kernel__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+@@ -502,6 +504,11 @@
+ static inline WORD get_ds(void) { WORD res; __asm__( "movw %%ds,%0" : "=r" (res) ); return res; }
+ static inline WORD get_fs(void) { WORD res; __asm__( "movw %%fs,%0" : "=r" (res) ); return res; }
+ static inline WORD get_gs(void) { WORD res; __asm__( "movw %%gs,%0" : "=r" (res) ); return res; }
++static CDECL void __attribute((naked)) set_cs( DWORD val ) {
++                                          asm  ( "movl 4(%esp),%eax\n\t"
++                                                 "xchg 0(%esp),%eax\n\t"
++                                                 "push %eax\n\t"
++                                                 "lret"); }
+ static inline void set_fs( WORD val ) { __asm__( "mov %0,%%fs" :: "r" (val)); }
+ static inline void set_gs( WORD val ) { __asm__( "mov %0,%%gs" :: "r" (val)); }
+ 
+@@ -667,8 +674,8 @@
+         set_gs( thread_data->gs );
+     }
+ #endif
+-
+-    if (!ldt_is_system(CS_sig(sigcontext)) || !ldt_is_system(SS_sig(sigcontext)))  /* 16-bit mode */
++    if ((CS_sig(sigcontext) != wine_cs && !ldt_is_system(CS_sig(sigcontext))) ||
++        !ldt_is_system(SS_sig(sigcontext)))  /* 16-bit mode */
+     {
+         /*
+          * Win16 or DOS protected mode. Note that during switch
+@@ -1159,7 +1166,7 @@
+     BYTE instr[16];
+     unsigned int i, len, prefix_count = 0;
+ 
+-    if (!ldt_is_system( context->SegCs )) return 0;
++    if (context->SegCs != wine_cs && !ldt_is_system( context->SegCs )) return 0;
+     len = virtual_uninterrupted_read_memory( (BYTE *)context->Eip, instr, sizeof(instr) );
+ 
+     for (i = 0; i < len; i++) switch (instr[i])
+@@ -1226,7 +1233,7 @@
+     WORD system_gs = x86_thread_data()->gs;
+ 
+     if (context->SegGs == system_gs) return FALSE;
+-    if (!ldt_is_system( context->SegCs )) return FALSE;
++    if (context->SegCs != wine_cs && !ldt_is_system( context->SegCs )) return FALSE;
+     /* only handle faults in system libraries */
+     if (virtual_is_valid_code_address( instr, 1 )) return FALSE;
+ 
+@@ -1463,7 +1470,7 @@
+     EIP_sig(sigcontext) = (DWORD)pKiUserExceptionDispatcher;
+     /* clear single-step, direction, and align check flag */
+     EFL_sig(sigcontext) &= ~(0x100|0x400|0x40000);
+-    CS_sig(sigcontext)  = get_cs();
++    CS_sig(sigcontext)  = wine_cs;
+     DS_sig(sigcontext)  = get_ds();
+     ES_sig(sigcontext)  = get_ds();
+     FS_sig(sigcontext)  = get_fs();
+@@ -2120,6 +2127,36 @@
+                                     LDT_FLAGS_ALLOCATED);
+ }
+ 
++static WORD internal_ldt_alloc_entry(void)
++{
++    for (int idx = first_ldt_entry; idx < LDT_SIZE; idx++)
++    {
++        if (__wine_ldt_copy.flags[idx] & LDT_FLAGS_ALLOCATED) continue;
++
++        /* mark selector as allocated */
++        __wine_ldt_copy.flags[idx] |= LDT_FLAGS_ALLOCATED;
++        return (idx << 3) | 7;
++    }
++    return 0;
++}
++
++static inline void cs_init( int first_thread )
++{
++    LDT_ENTRY entry;
++    sigset_t sigset;
++
++    /* no locking for first thread */
++    if (!first_thread) server_enter_uninterrupted_section( &ldt_mutex, &sigset );
++    if (!wine_cs)
++        wine_cs = internal_ldt_alloc_entry();
++
++    entry = ldt_make_entry( 0, (UINT_PTR)-1, LDT_FLAGS_CODE|LDT_FLAGS_32BIT );
++    ldt_set_entry( wine_cs, entry );
++
++    if (!first_thread) server_leave_uninterrupted_section( &ldt_mutex, &sigset );
++    set_cs( wine_cs );
++}
++
+ static void ldt_set_fs( WORD sel, TEB *teb )
+ {
+     if (sel == gdt_fs_sel)
+@@ -2237,38 +2274,35 @@
+ NTSTATUS signal_alloc_thread( TEB *teb )
+ {
+     struct x86_thread_data *thread_data = (struct x86_thread_data *)&teb->GdiTebBatch;
++    static int first_thread = 1;
+ 
+     if (!gdt_fs_sel)
+     {
+-        static int first_thread = 1;
+         sigset_t sigset;
+-        int idx;
++        WORD sel;
+         LDT_ENTRY entry = ldt_make_entry( teb, page_size - 1, LDT_FLAGS_DATA | LDT_FLAGS_32BIT );
+ 
+         if (first_thread)  /* no locking for first thread */
+         {
+             /* leave some space if libc is using the LDT for %gs */
+             if (!is_gdt_sel( get_gs() )) first_ldt_entry = 512;
+-            idx = first_ldt_entry;
+-            ldt_set_entry( (idx << 3) | 7, entry );
+-            first_thread = 0;
++            sel = (first_ldt_entry << 3) | 7;
++            ldt_set_entry( sel, entry );
+         }
+         else
+         {
+             server_enter_uninterrupted_section( &ldt_mutex, &sigset );
+-            for (idx = first_ldt_entry; idx < LDT_SIZE; idx++)
+-            {
+-                if (__wine_ldt_copy.flags[idx]) continue;
+-                ldt_set_entry( (idx << 3) | 7, entry );
+-                break;
+-            }
++            sel = internal_ldt_alloc_entry();
++            if (sel) ldt_set_entry( sel, entry );
+             server_leave_uninterrupted_section( &ldt_mutex, &sigset );
+-            if (idx == LDT_SIZE) return STATUS_TOO_MANY_THREADS;
++            if (!sel) return STATUS_TOO_MANY_THREADS;
+         }
+-        thread_data->fs = (idx << 3) | 7;
++        thread_data->fs = sel;
+     }
+     else thread_data->fs = gdt_fs_sel;
+ 
++    cs_init( first_thread );
++    first_thread = 0;
+     teb->WOW32Reserved = __wine_syscall_dispatcher;
+     return STATUS_SUCCESS;
+ }
+diff -ruB a/dlls/ntdll/unix/virtual.c b/dlls/ntdll/unix/virtual.c
+--- a/dlls/ntdll/unix/virtual.c	2021-12-16 18:31:51.927443514 -0300
++++ b/dlls/ntdll/unix/virtual.c	2021-12-16 18:39:10.713134787 -0300
+@@ -117,6 +117,8 @@
+     unsigned int  protect;       /* protection for all pages at allocation time and SEC_* flags */
+ };
+ 
++#define SYMBOLIC_LINK_QUERY 0x0001
++
+ /* per-page protection flags */
+ #define VPROT_READ       0x01
+ #define VPROT_WRITE      0x02
+@@ -4368,34 +4370,96 @@
+     return STATUS_SUCCESS;
+ }
+ 
++static NTSTATUS read_nt_symlink( UNICODE_STRING *name, WCHAR *target, DWORD size )
++{
++    NTSTATUS status;
++    OBJECT_ATTRIBUTES attr;
++    HANDLE handle;
++
++    attr.Length = sizeof(attr);
++    attr.RootDirectory = 0;
++    attr.Attributes = OBJ_CASE_INSENSITIVE;
++    attr.ObjectName = name;
++    attr.SecurityDescriptor = NULL;
++    attr.SecurityQualityOfService = NULL;
++
++    if (!(status = NtOpenSymbolicLinkObject( &handle, SYMBOLIC_LINK_QUERY, &attr )))
++    {
++        UNICODE_STRING targetW;
++        targetW.Buffer = target;
++        targetW.MaximumLength = (size - 1) * sizeof(WCHAR);
++        status = NtQuerySymbolicLinkObject( handle, &targetW, NULL );
++        if (!status) target[targetW.Length / sizeof(WCHAR)] = 0;
++        NtClose( handle );
++    }
++    return status;
++}
++
++static NTSTATUS follow_device_symlink( WCHAR *buffer, SIZE_T max_path_len, WCHAR *name, SIZE_T *current_path_len )
++{
++    WCHAR *p = buffer;
++    NTSTATUS status = STATUS_SUCCESS;
++    SIZE_T devname_len = 6; // e.g. \??\C:
++    UNICODE_STRING devname;
++    DWORD target_len;
++
++    if (*current_path_len >= devname_len * sizeof(WCHAR) && name[devname_len - 1] == ':') {
++        devname.Buffer = name;
++        devname.Length = devname_len * sizeof(WCHAR);
++        if (!(status = read_nt_symlink( &devname, p, (max_path_len - *current_path_len) / sizeof(WCHAR) + devname_len + 1 )))
++        {
++            target_len = lstrlenW(p);
++            *current_path_len -= devname_len * sizeof(WCHAR); // skip the device name
++            p += target_len;
++
++            memcpy( p, name + devname_len, *current_path_len );
++            *current_path_len += target_len * sizeof(WCHAR);
++        }
++    }
++    else memcpy( p, name, *current_path_len );
++
++    return status;
++}
++
+ static NTSTATUS get_memory_section_name( HANDLE process, LPCVOID addr,
+                                          MEMORY_SECTION_NAME *info, SIZE_T len, SIZE_T *ret_len )
+ {
++    SIZE_T current_path_len, max_path_len;
++    WCHAR *name;
+     NTSTATUS status;
+ 
+     if (!info) return STATUS_ACCESS_VIOLATION;
++    max_path_len = len - sizeof(*info) - sizeof(WCHAR); // dont count null char
++    if (!(name = malloc( max_path_len ))) return STATUS_NO_MEMORY;
+ 
+     SERVER_START_REQ( get_mapping_filename )
+     {
+         req->process = wine_server_obj_handle( process );
+         req->addr = wine_server_client_ptr( addr );
+         if (len > sizeof(*info) + sizeof(WCHAR))
+-            wine_server_set_reply( req, info + 1, len - sizeof(*info) - sizeof(WCHAR) );
++            wine_server_set_reply( req, name, max_path_len );
+         status = wine_server_call( req );
+         if (!status || status == STATUS_BUFFER_OVERFLOW)
+         {
+-            if (ret_len) *ret_len = sizeof(*info) + reply->len + sizeof(WCHAR);
+-            if (len < sizeof(*info)) status = STATUS_INFO_LENGTH_MISMATCH;
++            current_path_len = reply->len;
++            if (len < sizeof(*info))
++            {
++                status = STATUS_INFO_LENGTH_MISMATCH;
++            }
++            else if (!status) status = follow_device_symlink( (WCHAR *)(info + 1), max_path_len, name, &current_path_len);
++
++            if (ret_len) *ret_len = sizeof(*info) + current_path_len + sizeof(WCHAR);
+             if (!status)
+             {
+                 info->SectionFileName.Buffer = (WCHAR *)(info + 1);
+-                info->SectionFileName.Length = reply->len;
+-                info->SectionFileName.MaximumLength = reply->len + sizeof(WCHAR);
+-                info->SectionFileName.Buffer[reply->len / sizeof(WCHAR)] = 0;
++                info->SectionFileName.Length = current_path_len;
++                info->SectionFileName.MaximumLength = current_path_len + sizeof(WCHAR);
++                info->SectionFileName.Buffer[current_path_len / sizeof(WCHAR)] = 0;
+             }
+         }
+     }
+     SERVER_END_REQ;
++    free(name);
+     return status;
+ }
+ 
+diff -ruB a/dlls/psapi/tests/psapi_main.c b/dlls/psapi/tests/psapi_main.c
+--- a/dlls/psapi/tests/psapi_main.c	2021-12-16 18:32:51.266182055 -0300
++++ b/dlls/psapi/tests/psapi_main.c	2021-12-16 18:41:15.844828797 -0300
+@@ -471,7 +471,6 @@
+     ret = GetMappedFileNameA(GetCurrentProcess(), base, map_name, sizeof(map_name));
+     ok(ret, "GetMappedFileName error %d\n", GetLastError());
+     ok(ret > strlen(device_name), "map_name should be longer than device_name\n");
+-    todo_wine
+     ok(memcmp(map_name, device_name, strlen(device_name)) == 0, "map name does not start with a device name: %s\n", map_name);
+ 
+     SetLastError(0xdeadbeef);
+@@ -482,7 +481,6 @@
+     {
+         ok(memcmp(map_nameW, nt_map_name, lstrlenW(map_nameW)) == 0, "map name does not start with a device name: %s\n", map_name);
+         WideCharToMultiByte(CP_ACP, 0, map_nameW, -1, map_name, MAX_PATH, NULL, NULL);
+-        todo_wine
+         ok(memcmp(map_name, device_name, strlen(device_name)) == 0, "map name does not start with a device name: %s\n", map_name);
+     }
+ 
+@@ -490,7 +488,6 @@
+     ret = GetMappedFileNameA(GetCurrentProcess(), base + 0x2000, map_name, sizeof(map_name));
+     ok(ret, "GetMappedFileName error %d\n", GetLastError());
+     ok(ret > strlen(device_name), "map_name should be longer than device_name\n");
+-    todo_wine
+     ok(memcmp(map_name, device_name, strlen(device_name)) == 0, "map name does not start with a device name: %s\n", map_name);
+ 
+     SetLastError(0xdeadbeef);
+@@ -566,7 +563,7 @@
+     {
+         /* Windows returns 2*strlen-1 */
+         ok(ret >= strlen(szImgPath), "szImgPath=\"%s\" ret=%d\n", szImgPath, ret);
+-        todo_wine ok(!strcmp(szImgPath, szMapPath), "szImgPath=\"%s\" szMapPath=\"%s\"\n", szImgPath, szMapPath);
++        ok(!strcmp(szImgPath, szMapPath), "szImgPath=\"%s\" szMapPath=\"%s\"\n", szImgPath, szMapPath);
+     }
+ 
+     SetLastError(0xdeadbeef);
+diff -ruB a/tools/winebuild/import.c b/tools/winebuild/import.c
+--- a/tools/winebuild/import.c	2021-12-16 18:12:27.627473819 -0300
++++ b/tools/winebuild/import.c	2021-12-16 18:16:30.548854349 -0300
+@@ -1401,19 +1401,9 @@
+         switch (target.cpu)
+         {
+         case CPU_i386:
+-            if (UsePIC)
+-            {
+-                output( "\tcall %s\n", asm_name("__wine_spec_get_pc_thunk_eax") );
+-                output( "1:\tmovl %s-1b(%%eax),%%edx\n", asm_name("__wine_syscall_dispatcher") );
+-                output( "\tmovl $%u,%%eax\n", id );
+-                needs_get_pc_thunk = 1;
+-            }
+-            else
+-            {
+-                output( "\tmovl $%u,%%eax\n", id );
+-                output( "\tmovl $%s,%%edx\n", asm_name("__wine_syscall") );
+-            }
+-            output( "\tcall *%%edx\n" );
++            output( "\t.byte 0xb8\n" );                               /* mov eax, SYSCALL */
++            output( "\t.long %d\n", i );
++            output( "\t.byte 0x64,0xff,0x15,0xc0,0x00,0x00,0x00\n" ); /* call dword ptr fs:[0C0h] */
+             output( "\tret $%u\n", odp->type == TYPE_STDCALL ? get_args_size( odp ) : 0 );
+             break;
+         case CPU_x86_64:
